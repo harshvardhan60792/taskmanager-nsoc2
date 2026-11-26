@@ -9,11 +9,10 @@ import ChartsOverview from './components/ChartsOverview';
 import BackupModal from './components/BackupModal';
 import UndoToast from './components/UndoToast';
 import PomodoroTimer from './components/PomodoroTimer';
-import './components/prompt.css';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import { useTheme } from './hooks/useTheme';
 import { useUndoDelete } from './hooks/useUndoDelete';
-import { getTodayDate, createTaskId } from './utils/taskUtils';
+import { getTodayDate, createTaskId, addPomodoro } from './utils/taskUtils';
 import { restoreTask } from './utils/undoDelete';
 import { canReorder, moveTask, getMoveMessage } from './utils/reorderUtils';
 import { loadEngineState, recordTaskCompletion, calcStreak, getBalance } from './utils/streakEngine';
@@ -32,8 +31,7 @@ export default function App() {
   const [moveMessage, setMoveMessage] = useState('');
   const reorderEnabled = canReorder(currentFilter, searchQuery, currentSort);
   const [, setLastRenderDate] = useState(getTodayDate());
-  const [taskId, setTaskId] = useState('');
-  const [taskIdPrompt, setTaskIdPrompt] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
 
   // Automatic overdue refresh when midnight passes or tab becomes visible
   useEffect(() => {
@@ -143,15 +141,10 @@ export default function App() {
     setSearchQuery('');
   };
 
-  const handleSessionComplete = (sessionType, durationMinutes) => {
-    // Callback from PomodoroTimer when a session ends.
-    // We could optionally show a notification or update task progress,
-    // but we do NOT automatically mark tasks as completed unless explicitly designed.
-    // For now, just log the session completion.
-    // You could integrate with the engine here if desired.
-    // Example: recordTaskCompletion or streak updates could go here.
-    // For now, we just announce it.
-    // TODO: Add any desired session completion handling.
+  // A focus session that ran to the end adds one pomodoro to the chosen task.
+  const handleSessionComplete = (sessionType, durationMinutes, taskId) => {
+    if (sessionType !== 'focus' || !taskId) return;
+    setTasks(prev => prev.map(task => (task.id === taskId ? addPomodoro(task) : task)));
   };
 
   return (
@@ -160,100 +153,75 @@ export default function App() {
         isLight={isLight}
         onToggleTheme={toggleTheme}
         onOpenBackup={() => setIsBackupOpen(true)}
+        showTimer={showTimer}
+        onToggleTimer={() => setShowTimer(prev => !prev)}
       />
 
       {!taskStorage.writable && <p role="alert">Task editing is read-only because this browser does not support Web Locks. Your saved tasks are still available.</p>}
       {taskStorage.error && <p role="alert">{taskStorage.error}</p>}
-      <fieldset disabled={!taskStorage.writable} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-      <legend className="visually-hidden">Tasks</legend>
-      <TaskForm
-        onAddTask={handleAddTask}
-        historyMode={historyMode}
-        onToggleHistory={handleToggleHistory}
-      />
+      <div className="flip-scene">
+        <div className={`flip-inner${showTimer ? ' is-flipped' : ''}`}>
+          <div className="flip-face" aria-hidden={showTimer} inert={showTimer ? '' : undefined}>
+          <fieldset disabled={!taskStorage.writable} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+          <legend className="visually-hidden">Tasks</legend>
+          <TaskForm
+            onAddTask={handleAddTask}
+            historyMode={historyMode}
+            onToggleHistory={handleToggleHistory}
+          />
 
-      <StatsDashboard
-        tasks={tasks}
-        streak={calcStreak(engine.activityDays)}
-        points={getBalance(engine.ledger)}
-        currentFilter={currentFilter}
-        onSelectFilter={setCurrentFilter}
-      />
+          <StatsDashboard
+            tasks={tasks}
+            streak={calcStreak(engine.activityDays)}
+            points={getBalance(engine.ledger)}
+            currentFilter={currentFilter}
+            onSelectFilter={setCurrentFilter}
+          />
 
-      <TaskToolbar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        onClearSearch={handleClearSearch}
-        currentSort={currentSort}
-        onSortChange={setCurrentSort}
-      />
+          <TaskToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onClearSearch={handleClearSearch}
+            currentSort={currentSort}
+            onSortChange={setCurrentSort}
+          />
 
-      <PomodoroTimer
-        taskId={taskId || undefined}
-        onSessionComplete={handleSessionComplete}
-      />
-
-      {taskIdPrompt && (
-        <div id="pomodoro-task-id-prompt" className="pomodoro-task-id-prompt">
-          <label htmlFor="pomodoro-task-id-input" className="pomodoro-task-id-label">
-            Associate timer with task ID:
-            <input
-              id="pomodoro-task-id-input"
-              type="text"
-              value={taskId}
-              onChange={(e) => setTaskId(e.target.value)}
-              aria-label="Task ID to associate with timer"
+          {historyMode && (
+            <FilterTabs
+              currentFilter={currentFilter}
+              onSelectFilter={setCurrentFilter}
             />
-          </label>
-          <button
-            type="button"
-            className="pomodoro-task-id-btn"
-            onClick={() => setTaskIdPrompt(false)}
-            aria-label="Cancel"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="pomodoro-task-id-btn pomodoro-task-id-btn--primary"
-            onClick={() => setTaskIdPrompt(false)}
-            aria-label="Set task ID"
-          >
-            Set
-          </button>
+          )}
+
+          <TaskList
+            tasks={tasks}
+            currentFilter={currentFilter}
+            searchQuery={searchQuery}
+            reorderEnabled={reorderEnabled}
+            onMoveTask={handleMoveTask}
+            currentSort={currentSort}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+            onUpdateTaskText={handleUpdateTaskText}
+            onUpdateTask={handleUpdateTask}
+          />
+
+          {!reorderEnabled && tasks.length > 0 && (
+            <p className="reorder-hint">
+              To reorder tasks, open the Active list with no search and sort set to Default.
+            </p>
+          )}
+          <p className="visually-hidden" role="status">{moveMessage}</p>
+
+          {historyMode && <ChartsOverview tasks={tasks} isLight={isLight} />}
+
+          </fieldset>
+          </div>
+          <div className="flip-face flip-face--back" aria-hidden={!showTimer} inert={!showTimer ? '' : undefined}>
+            <PomodoroTimer tasks={tasks} onSessionComplete={handleSessionComplete} />
+          </div>
         </div>
-      )}
-
-      {historyMode && (
-        <FilterTabs
-          currentFilter={currentFilter}
-          onSelectFilter={setCurrentFilter}
-        />
-      )}
-
-      <TaskList
-        tasks={tasks}
-        currentFilter={currentFilter}
-        searchQuery={searchQuery}
-        reorderEnabled={reorderEnabled}
-        onMoveTask={handleMoveTask}
-        currentSort={currentSort}
-        onToggleComplete={handleToggleComplete}
-        onDeleteTask={handleDeleteTask}
-        onUpdateTaskText={handleUpdateTaskText}
-        onUpdateTask={handleUpdateTask}
-      />
-
-      {!reorderEnabled && tasks.length > 0 && (
-        <p className="reorder-hint">
-          To reorder tasks, open the Active list with no search and sort set to Default.
-        </p>
-      )}
-      <p className="visually-hidden" role="status">{moveMessage}</p>
-
-      {historyMode && <ChartsOverview tasks={tasks} isLight={isLight} />}
-
-      </fieldset>
+      </div>
       <BackupModal
         isOpen={isBackupOpen}
         onClose={() => setIsBackupOpen(false)}

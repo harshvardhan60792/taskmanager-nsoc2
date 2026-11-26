@@ -1,4 +1,4 @@
-import { isValidTask, clearInvalidDueDate } from './taskUtils.js';
+import { isValidTask, clearInvalidDueDate, clearInvalidPomodoros } from './taskUtils.js';
 import { sanitizeSubtasks } from './subtaskUtils.js';
 
 // Legacy IDs must agree between tabs before the first mutation persists them.
@@ -13,7 +13,7 @@ export function parseTasks(raw) {
   if (raw === null) return [];
   const parsed = JSON.parse(raw);
   if (!Array.isArray(parsed)) throw new Error('Saved tasks are not a list.');
-  const cleaned = parsed.map(clearInvalidDueDate).map(sanitizeSubtasks);
+  const cleaned = parsed.map(clearInvalidDueDate).map(sanitizeSubtasks).map(clearInvalidPomodoros);
   if (!cleaned.every(isValidTask)) throw new Error('Saved task records are malformed.');
   return cleaned
     .map((task, index) => task.id ? task : { ...task, id: legacyId(task, index) });
