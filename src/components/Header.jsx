@@ -1,7 +1,7 @@
 import React from 'react';
 import './header.css';
 
-export default function Header({ isLight, onToggleTheme, onOpenBackup }) {
+export default function Header({ isLight, onToggleTheme, onOpenBackup, showTimer, onToggleTimer }) {
   return (
     <header className="app-header">
       <div className="brand">
@@ -12,6 +12,18 @@ export default function Header({ isLight, onToggleTheme, onOpenBackup }) {
         </div>
       </div>
       <nav className="header-actions" aria-label="App actions">
+        <button
+          id="timer-toggle"
+          className="header-btn"
+          type="button"
+          onClick={onToggleTimer}
+          aria-pressed={showTimer}
+          aria-label={showTimer ? 'Back to tasks' : 'Focus timer'}
+          title={showTimer ? 'Back to tasks' : 'Focus timer'}
+        >
+          <span className="header-btn-icon" aria-hidden="true">{showTimer ? '←' : '⏱'}</span>
+          <span className="header-btn-label">{showTimer ? 'Back to tasks' : 'Focus timer'}</span>
+        </button>
         <button
           id="backup-toggle"
           className="header-btn"

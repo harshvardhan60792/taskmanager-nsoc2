@@ -21,6 +21,7 @@ const noop = () => {};
 test('keeps the existing controls and their ids', async () => {
   const Header = await loadHeader();
   const html = renderToStaticMarkup(React.createElement(Header, { isLight: false, onToggleTheme: noop, onOpenBackup: noop }));
+  assert.match(html, /id="timer-toggle"/);
   assert.match(html, /id="backup-toggle"/);
   assert.match(html, /id="theme-toggle"/);
   assert.match(html, /<h1>Task Manager<\/h1>/);
@@ -31,7 +32,7 @@ test('actions live in a labelled nav and every button has an accessible name', a
   const html = renderToStaticMarkup(React.createElement(Header, { isLight: false, onToggleTheme: noop, onOpenBackup: noop }));
   assert.match(html, /<nav[^>]*aria-label="App actions"/);
   const buttons = html.match(/<button[^>]*>/g);
-  assert.equal(buttons.length, 2);
+  assert.equal(buttons.length, 3);
   for (const b of buttons) assert.match(b, /aria-label="[^"]+"/);
 });
 
@@ -48,6 +49,6 @@ test('icons are hidden from assistive tech', async () => {
   const Header = await loadHeader();
   const html = renderToStaticMarkup(React.createElement(Header, { isLight: false, onToggleTheme: noop, onOpenBackup: noop }));
   const icons = html.match(/<span class="header-btn-icon"[^>]*>/g);
-  assert.equal(icons.length, 2);
+  assert.equal(icons.length, 3);
   for (const i of icons) assert.match(i, /aria-hidden="true"/);
 });
